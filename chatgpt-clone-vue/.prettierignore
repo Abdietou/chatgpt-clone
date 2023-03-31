@@ -1,0 +1,10 @@
+*.ico
+*.gitKeep
+**/node_modules
+**/src/assets
+**/coverage
+**/dist
+.prettierignore
+.gitignore
+.estlintignore
+.env
