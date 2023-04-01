@@ -2,14 +2,35 @@
   <section class="side-bar">
     <button @click="clearInput()">New Chat</button>
     <div class="history" v-if="history.length > 0">
-      <p
+      <div
         v-for="(message, index) in history"
         :key="index"
-        @click="getInputValue(message)"
+        class="history-item"
       >
-        {{ message.substring(0, 18) + "..." }}
-      </p>
+        <input
+          type="text"
+          v-model="message.Content"
+          v-if="isEditing && message.Id === editingId"
+          @keyup.esc="cancelEditing"
+          @keyup.enter="saveEditedMessage"
+        />
+
+        <template v-else>
+          <p @click="getInputValue(message.Content)">
+            {{ message.Content.substring(0, 18) + "..." }}
+          </p>
+          <div class="icons" v-show="!confirmDelete">
+            <i class="fas fa-pencil-alt" @click="showEditing(message.Id)"></i>
+            <i class="fas fa-trash" @click="showConfirmDelete"></i>
+          </div>
+          <div class="icons" v-show="confirmDelete">
+            <i class="fas fa-check" @click="confirmDeleteItem(message.Id)"></i>
+            <i class="fas fa-times" @click="cancelConfirmDelete"></i>
+          </div>
+        </template>
+      </div>
     </div>
+
     <nav>
       <p>Made in Typescript</p>
     </nav>
@@ -32,31 +53,171 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from "vue";
+import { defineComponent, ref, onMounted } from "vue";
 import { MyRequestInit } from "../interfaces/my-request-init";
+import { HistoryItem } from "../interfaces/history-item";
+import { HistoryResponse } from "../interfaces/history-response";
 
 export default defineComponent({
   name: "HomeView",
   setup() {
+    // ----- Data -----
     const API_KEY: string = process.env.VUE_APP_API_KEY;
+    const API_URI: string = process.env.VUE_APP_API_URI;
+
     const responseContent = ref<string>("");
     const inputValue = ref<string>("");
+    const history = ref<HistoryItem[]>([]);
+    const confirmDelete = ref<boolean>(false);
+    const isEditing = ref<boolean>(false);
+    const editingId = ref<number>(0);
 
-    // const history = ref<string[]>([
-    //   "qui est l'auteur de crimes et châtiment ?",
-    //   "qui est l'auteur du joueur d'échec ?",
-    //   "coucou",
-    //   "quel jour nous-sommes aujourd'hui ?",
-    //   "L'IA peut remplacer des métiers",
-    //   "Quesl est le meilleur langage de programmation web ?",
-    //   "quel est la différence entre une base sql et une base no sql ?",
-    //   "docker c'est quoi ?",
-    //   "kubernetes c'est quoi ?",
-    // ]);
+    // ----- Functions -----
+    const fetchHistory = async (): Promise<HistoryItem[]> => {
+      try {
+        let response = await fetch(API_URI);
+        if (!response.ok) {
+          throw new Error("Error fetching history");
+        }
+        let data: HistoryResponse = await response.json();
+        return data.history;
+      } catch (err) {
+        console.log(err);
+        throw new Error("Error fetching history");
+      }
+    };
 
-    const history = ref<string[]>([]);
+    const postHistory = async (content: string): Promise<void> => {
+      const options: MyRequestInit = {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          Content: content,
+        }),
+      };
+      try {
+        const response = await fetch(API_URI + "/add", options);
 
-    return { API_KEY, responseContent, inputValue, history };
+        if (!response.ok) {
+          throw new Error("Network response was not ok");
+        }
+        const items = await fetchHistory();
+        history.value = items.map((item: HistoryItem) => item);
+      } catch (err) {
+        console.error(err);
+        throw new Error("Error posting message");
+      }
+    };
+
+    const deleteHistory = async (id: number): Promise<void> => {
+      const response = await fetch(API_URI + "/delete/" + id, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Network response was not ok");
+      }
+    };
+
+    const putHistory = async (id: number, content: string): Promise<void> => {
+      const options: MyRequestInit = {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          Content: content,
+        }),
+      };
+      try {
+        const response = await fetch(API_URI + "/update/" + id, options);
+        if (!response.ok) {
+          throw new Error("Network response was not ok");
+        }
+        const items = await fetchHistory();
+        history.value = items.map((item: HistoryItem) => item);
+      } catch (err) {
+        console.log(err);
+        throw new Error("Error updating message");
+      }
+    };
+
+    const showConfirmDelete = (): void => {
+      confirmDelete.value = true;
+    };
+
+    const cancelConfirmDelete = (): void => {
+      confirmDelete.value = false;
+    };
+
+    const confirmDeleteItem = async (id: number): Promise<void> => {
+      try {
+        await deleteHistory(id);
+        const items = await fetchHistory();
+        history.value = items.map((item: HistoryItem) => item);
+        cancelConfirmDelete();
+      } catch (err) {
+        console.log(err);
+        throw new Error("Error delete message");
+      } finally {
+        cancelConfirmDelete();
+      }
+    };
+
+    const showEditing = (id: number): void => {
+      isEditing.value = true;
+      editingId.value = id;
+    };
+
+    const saveEditedMessage = (): void => {
+      const editedMessageIndex = history.value.findIndex(
+        (message) => message.Id === editingId.value
+      );
+
+      if (editedMessageIndex !== -1) {
+        putHistory(
+          history.value[editedMessageIndex].Id,
+          history.value[editedMessageIndex].Content
+        )
+          .then(() => {
+            inputValue.value = history.value[editedMessageIndex].Content;
+            isEditing.value = false;
+          })
+          .catch((err) => {
+            isEditing.value = false;
+            console.log(err);
+          });
+      }
+    };
+
+    // Mounted
+    onMounted(() => {
+      fetchHistory().then((items: HistoryItem[]) => {
+        history.value = items.map((item: HistoryItem) => item);
+      });
+    });
+
+    return {
+      API_KEY,
+      API_URI,
+      responseContent,
+      inputValue,
+      history,
+      fetchHistory,
+      postHistory,
+      deleteHistory,
+      putHistory,
+      confirmDelete,
+      showConfirmDelete,
+      cancelConfirmDelete,
+      confirmDeleteItem,
+      isEditing,
+      showEditing,
+      editingId,
+      saveEditedMessage,
+    };
   },
   methods: {
     async getMessage(): Promise<void> {
@@ -80,14 +241,14 @@ export default defineComponent({
             options
           );
           const data = await response.json();
-          console.log(data);
           this.responseContent = data.choices[0].message.content;
 
           if (data.choices[0]?.message?.content && this.inputValue) {
-            this.history.push(this.inputValue);
+            this.postHistory(this.inputValue);
           }
         } catch (err) {
           console.log(err);
+          throw new Error("Error with openai API");
         }
       }
     },
@@ -96,6 +257,9 @@ export default defineComponent({
     },
     getInputValue(value: string): void {
       this.inputValue = value;
+    },
+    cancelEditing(): void {
+      this.isEditing = false;
     },
   },
 });
@@ -239,5 +403,24 @@ nav {
 
 .history::-webkit-scrollbar-corner {
   background-color: transparent;
+}
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.icons {
+  display: flex;
+}
+
+.icons i {
+  margin-left: 10px;
+  cursor: pointer;
+}
+
+.icons i:hover {
+  color: red;
 }
 </style>
