@@ -1,12 +1,17 @@
 from flask import Flask, request, jsonify, make_response
 from flask_restful import Resource, Api
 from flask_sqlalchemy import SQLAlchemy
+from flask_cors import CORS
 
 # create an instance of flask
 app = Flask(__name__)
 
+CORS(app)
+
 # creating an API object
 api = Api(app)
+
+CORS(app, origins='http://localhost:8080')
 
 # create database
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///history.db'
@@ -47,7 +52,7 @@ class AddHistory(Resource):
         else:
             return {'error': 'Request must be JSON'}, 400
 
-# For put request to http://localhost:5000/update/?
+# For put request to http://localhost:5000/update/id
 class UpdateHistory(Resource):
     def put(self, id):
         if request.is_json:
@@ -61,7 +66,7 @@ class UpdateHistory(Resource):
         else:
             return {'error': 'Request must be JSON'}, 400
 
-# For delete request to http://localhost:5000/delete/?
+# For delete request to http://localhost:5000/delete/id
 class DeleteHistory(Resource):
     def delete(self, id):
         hist = History.query.get(id)
