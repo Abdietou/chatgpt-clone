@@ -1,4 +1,5 @@
 # chatgpt-clone-vue
+
 Build ChatGPT in Vue and API for save history
 This repository contain chatgpt-clone-vue
 
@@ -6,10 +7,10 @@ This repository contain chatgpt-clone-vue
 
 To run this application on your workstation, you must install :
 
--   node.js version 16.xx.xx
--   npm 8.xx.x
--   Vue Cli 5.x.xx
--   Vue 3
+- node.js version 16.xx.xx
+- npm 8.xx.x
+- Vue Cli 5.x.xx
+- Vue 3
 
 ### Vue CLI
 
